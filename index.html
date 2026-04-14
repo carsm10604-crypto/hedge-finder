@@ -300,15 +300,7 @@
         ? `<div class="error-msg">${msg}</div>` : '';
     }
 
-    async function fetchPrices(ticker) {
-      const end = Math.floor(Date.now() / 1000);
-      const start = end - 60 * 86400;
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&period1=${start}&period2=${end}`;
-      const data = await fetchWithFallback(url);
-      const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if (!closes || closes.length < 10) throw new Error(`No price data for ${ticker}`);
-      return closes.filter(x => x !== null && x !== undefined);
-    }
+
 
     function calcReturns(prices) {
       const r = [];
