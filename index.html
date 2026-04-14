@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Hedge Finder" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <title>Hedge Finder</title>
+  <link rel="manifest" href="manifest.json" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --bg2: #1a1a1a;
+      --bg3: #242424;
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(255,255,255,0.15);
+      --text: #f0f0f0;
+      --text2: #888;
+      --text3: #555;
+      --blue: #4da3ff;
+      --green: #3ecf8e;
+      --red: #f87171;
+      --amber: #fbbf24;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 56px 20px 40px;
+    }
+
+    .header { margin-bottom: 28px; }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .header p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .ticker-input {
+      flex: 1;
+      font-family: 'DM Mono', monospace;
+      font-size: 16px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 0 16px;
+      height: 48px;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      background: var(--bg2);
+      color: var(--text);
+      outline: none;
+      -webkit-appearance: none;
+    }
+    .ticker-input::placeholder { color: var(--text3); letter-spacing: 0.5px; }
+    .ticker-input:focus { border-color: var(--blue); }
+
+    .run-btn {
+      height: 48px;
+      padding: 0 20px;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      background: var(--bg2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .run-btn:active { background: var(--bg3); }
+    .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .status-bar {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: 'DM Mono', monospace;
+      min-height: 20px;
+      margin-bottom: 20px;
+      padding-left: 2px;
+    }
+
+    .error-msg {
+      font-size: 13px;
+      color: var(--red);
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--bg2);
+      border-radius: var(--radius-sm);
+      padding: 14px 12px;
+      border: 1px solid var(--border);
+    }
+    .metric-label {
+      font-size: 10px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+    .metric-value {
+      font-size: 20px;
+      font-weight: 500;
+      font-family: 'DM Mono', monospace;
+    }
+    .metric-value.pos { color: var(--green); }
+    .metric-value.neg { color: var(--red); }
+    .metric-value.neu { color: var(--text); }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text2);
+      margin-bottom: 10px;
+    }
+
+    .hedges-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .hedge-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.15s;
+    }
+    .hedge-card:active { border-color: var(--border2); }
+
+    .sector-badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 99px;
+      background: rgba(77,163,255,0.12);
+      color: var(--blue);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .hedge-ticker {
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    .hedge-name {
+      font-size: 10px;
+      color: var(--text2);
+      margin-bottom: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hedge-stats { display: flex; gap: 14px; }
+    .hedge-stat-label { font-size: 9px; color: var(--text3); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .hedge-stat-val { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .c-red { color: var(--red); }
+    .c-green { color: var(--green); }
+
+    .chart-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); }
+    .legend-line { width: 18px; height: 2px; border-radius: 1px; }
+    .legend-line.dashed { background: repeating-linear-gradient(90deg, var(--text3) 0, var(--text3) 4px, transparent 4px, transparent 7px); }
+
+    .disclaimer {
+      font-size: 10px;
+      color: var(--text3);
+      line-height: 1.6;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Hedge Finder</h1>
+      <p>Enter a tech stock to find inversely correlated hedges across defensive sectors</p>
+    </div>
+
+    <div class="search-row">
+      <input class="ticker-input" id="tickerInput" type="text" placeholder="NVDA" maxlength="6" autocomplete="off" autocorrect="off" spellcheck="false" />
+      <button class="run-btn" id="runBtn" onclick="runAnalysis()">Analyze</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">Enter a ticker to get started</div>
+    <div id="errorMsg"></div>
+
+    <div id="metricsSection" style="display:none">
+      <div class="metrics-row" id="metricsRow"></div>
+      <p class="section-label">Top hedge candidates</p>
+      <div class="hedges-grid" id="hedgesGrid"></div>
+      <div class="chart-wrap">
+        <p class="section-label" style="margin-bottom:10px">30-day normalized return</p>
+        <div class="legend" id="chartLegend"></div>
+        <div style="position:relative;height:180px">
+          <canvas id="priceChart" role="img" aria-label="30-day price chart comparing selected ticker to S&P 500"></canvas>
+        </div>
+      </div>
+      <p class="disclaimer">Beta and correlation are calculated from 30 days of Yahoo Finance data via a public CORS proxy. Figures are estimates for informational purposes only. This is not financial advice.</p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script>
+    const PROXY = 'https://corsproxy.io/?';
+    const HEDGES = [
+      { ticker:'WM',   name:'Waste Management',     sector:'Waste' },
+      { ticker:'ED',   name:'Con Edison',            sector:'Utilities' },
+      { ticker:'MCD',  name:"McDonald's",            sector:'Staples' },
+      { ticker:'KO',   name:'Coca-Cola',             sector:'Staples' },
+      { ticker:'GLD',  name:'SPDR Gold ETF',         sector:'Commodities' },
+      { ticker:'VZ',   name:'Verizon',               sector:'Telecom' },
+      { ticker:'PG',   name:'Procter & Gamble',      sector:'Staples' },
+      { ticker:'JNJ',  name:'Johnson & Johnson',     sector:'Healthcare' },
+      { ticker:'XLU',  name:'Utilities ETF',         sector:'Utilities' },
+      { ticker:'XLP',  name:'Consumer Staples ETF',  sector:'Staples' },
+      { ticker:'XLV',  name:'Healthcare ETF',        sector:'Healthcare' },
+      { ticker:'TLT',  name:'20yr Treasury ETF',     sector:'Bonds' },
+    ];
+
+    let priceChart = null;
+
+    function setStatus(msg) { document.getElementById('statusBar').textContent = msg; }
+    function setError(msg) {
+      document.getElementById('errorMsg').innerHTML = msg
+        ? `<div class="error-msg">${msg}</div>` : '';
+    }
+
+    async function fetchPrices(ticker) {
+      const end = Math.floor(Date.now() / 1000);
+      const start = end - 60 * 86400;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&period1=${start}&period2=${end}`;
+      const res = await fetch(PROXY + encodeURIComponent(url));
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${ticker}`);
+      const data = await res.json();
+      const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      if (!closes || closes.length < 10) throw new Error(`No price data for ${ticker}`);
+      return closes.filter(x => x !== null && x !== undefined);
+    }
+
+    function calcReturns(prices) {
+      const r = [];
+      for (let i = 1; i < prices.length; i++) r.push((prices[i] - prices[i-1]) / prices[i-1]);
+      return r;
+    }
+
+    function calcBeta(stockRet, spyRet) {
+      const n = Math.min(stockRet.length, spyRet.length);
+      const sr = stockRet.slice(0,n), mr = spyRet.slice(0,n);
+      const meanS = sr.reduce((a,b)=>a+b,0)/n, meanM = mr.reduce((a,b)=>a+b,0)/n;
+      let cov = 0, varM = 0;
+      for (let i=0;i<n;i++){cov+=(sr[i]-meanS)*(mr[i]-meanM);varM+=(mr[i]-meanM)**2;}
+      return varM===0?0:cov/varM;
+    }
+
+    function calcCorr(a, b) {
+      const n = Math.min(a.length, b.length);
+      const x = a.slice(0,n), y = b.slice(0,n);
+      const mx = x.reduce((a,b)=>a+b,0)/n, my = y.reduce((a,b)=>a+b,0)/n;
+      let num=0,dx=0,dy=0;
+      for(let i=0;i<n;i++){num+=(x[i]-mx)*(y[i]-my);dx+=(x[i]-mx)**2;dy+=(y[i]-my)**2;}
+      return dx===0||dy===0?0:num/Math.sqrt(dx*dy);
+    }
+
+    function normalize(prices) {
+      const base = prices[0];
+      return prices.map(p => ((p-base)/base)*100);
+    }
+
+    async function runAnalysis() {
+      const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+      if (!ticker) return;
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+      document.getElementById('metricsSection').style.display = 'none';
+      setError('');
+
+      try {
+        setStatus('Fetching price data...');
+        const [stockPrices, spyPrices] = await Promise.all([
+          fetchPrices(ticker),
+          fetchPrices('SPY')
+        ]);
+
+        setStatus('Calculating beta & correlation...');
+        const stockRet = calcReturns(stockPrices);
+        const spyRet = calcReturns(spyPrices);
+        const beta = calcBeta(stockRet, spyRet);
+        const corrSpy = calcCorr(stockRet, spyRet);
+
+        const betaClass = beta > 1.2 ? 'neg' : beta < 0.6 ? 'pos' : 'neu';
+        const corrClass = corrSpy > 0.5 ? 'neg' : corrSpy < 0 ? 'pos' : 'neu';
+
+        document.getElementById('metricsRow').innerHTML = `
+          <div class="metric-card">
+            <div class="metric-label">Beta</div>
+            <div class="metric-value ${betaClass}">${beta.toFixed(2)}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Corr / SPY</div>
+            <div class="metric-value ${corrClass}">${corrSpy.toFixed(2)}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Days</div>
+            <div class="metric-value neu">${stockPrices.length}</div>
+          </div>
+        `;
+
+        setStatus('Scoring hedge candidates...');
+        const hedgeResults = await Promise.allSettled(
+          HEDGES.map(h => fetchPrices(h.ticker).then(p => ({...h, prices: p})))
+        );
+
+        const scored = [];
+        hedgeResults.forEach(r => {
+          if (r.status !== 'fulfilled') return;
+          const hd = r.value;
+          const hRet = calcReturns(hd.prices);
+          scored.push({...hd, corr: calcCorr(stockRet, hRet), beta: calcBeta(hRet, spyRet)});
+        });
+        scored.sort((a,b) => a.corr - b.corr);
+        const top = scored.slice(0, 6);
+
+        document.getElementById('hedgesGrid').innerHTML = top.map(h => `
+          <div class="hedge-card">
+            <div class="sector-badge">${h.sector}</div>
+            <div class="hedge-ticker">${h.ticker}</div>
+            <div class="hedge-name">${h.name}</div>
+            <div class="hedge-stats">
+              <div>
+                <div class="hedge-stat-label">Corr</div>
+                <div class="hedge-stat-val ${h.corr < 0 ? 'c-red' : 'c-green'}">${h.corr.toFixed(2)}</div>
+              </div>
+              <div>
+                <div class="hedge-stat-label">Beta</div>
+                <div class="hedge-stat-val ${h.beta < 0.5 ? 'c-green' : ''}">${h.beta.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        setStatus('Drawing chart...');
+        const normStock = normalize(stockPrices);
+        const normSpy = normalize(spyPrices.slice(0, stockPrices.length));
+        const labels = normStock.map((_,i) => i+1);
+
+        document.getElementById('chartLegend').innerHTML = `
+          <div class="legend-item"><div class="legend-line" style="background:#4da3ff"></div>${ticker}</div>
+          <div class="legend-item"><div class="legend-line dashed"></div>SPY</div>
+        `;
+
+        if (priceChart) priceChart.destroy();
+        priceChart = new Chart(document.getElementById('priceChart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              { label: ticker, data: normStock, borderColor: '#4da3ff', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+              { label: 'SPY', data: normSpy, borderColor: '#555', borderWidth: 1.5, borderDash: [4,3], pointRadius: 0, tension: 0.3 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%` } }
+            },
+            scales: {
+              x: { display: false },
+              y: {
+                ticks: { callback: v => v.toFixed(1)+'%', font: { size: 10 }, color: '#555' },
+                grid: { color: 'rgba(255,255,255,0.04)' }
+              }
+            }
+          }
+        });
+
+        document.getElementById('metricsSection').style.display = 'block';
+        setStatus(`${ticker} — analysis complete`);
+
+      } catch(e) {
+        setError(`Could not fetch data: ${e.message}. Check the ticker and try again.`);
+        setStatus('');
+      }
+      btn.disabled = false;
+    }
+
+    document.getElementById('tickerInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') runAnalysis();
+    });
+  </script>
+</body>
+</html>
