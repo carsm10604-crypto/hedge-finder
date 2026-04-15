@@ -1,12 +1,13 @@
 export default async function handler(req, res) {
-  const { ticker } = req.query;
+  const { ticker, days } = req.query;
 
   if (!ticker) {
     return res.status(400).json({ error: 'Missing ticker' });
   }
 
+  const numDays = Math.min(parseInt(days) || 30, 365);
   const end = Math.floor(Date.now() / 1000);
-  const start = end - 60 * 86400;
+  const start = end - numDays * 86400;
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&period1=${start}&period2=${end}`;
 
   try {
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: `Yahoo returned ${response.status}` });
+      return res.status(response.status).json({ error: `Yahoo returned ${response.status} for ${ticker}` });
     }
 
     const data = await response.json();
