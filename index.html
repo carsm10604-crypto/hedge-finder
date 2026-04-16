@@ -241,6 +241,11 @@
     .hedge-card.favorited { border-color:var(--amber-border); background:var(--amber-bg); }
     .fav-btn { position:absolute; top:10px; right:10px; background:none; border:none; font-size:14px; cursor:pointer; opacity:0.25; transition:opacity 0.15s; padding:2px; line-height:1; }
     .fav-btn:hover,.hedge-card.favorited .fav-btn { opacity:1; }
+    .grade-badge { position:absolute; top:10px; left:10px; width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family:'Geist Mono',monospace; }
+    .grade-A { background:rgba(22,163,74,0.15); color:var(--green); }
+    .grade-B { background:rgba(37,99,235,0.12); color:var(--blue); }
+    .grade-C { background:rgba(217,119,6,0.12); color:var(--amber); }
+    .grade-D,.grade-F { background:rgba(220,38,38,0.12); color:var(--red); }
     .sector-badge { display:inline-block; font-size:10px; padding:2px 7px; border-radius:99px; background:var(--blue-bg); color:var(--blue); margin-bottom:7px; font-weight:500; }
     .sector-badge.custom-badge { background:var(--green-bg); color:var(--green); }
     .hedge-ticker { font-family:'Geist Mono',monospace; font-size:15px; font-weight:600; margin-bottom:1px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
@@ -344,6 +349,22 @@
   </style>
 </head>
 <body>
+<div class="onboarding-overlay" id="onboardingOverlay" style="display:none">
+  <div class="onboarding-card">
+    <div class="onboarding-step" id="obStep">Step 1 of 3</div>
+    <div class="onboarding-title" id="obTitle"></div>
+    <div class="onboarding-desc" id="obDesc"></div>
+    <div class="onboarding-dots">
+      <div class="onboarding-dot active" id="obDot0"></div>
+      <div class="onboarding-dot" id="obDot1"></div>
+      <div class="onboarding-dot" id="obDot2"></div>
+    </div>
+    <div class="onboarding-btns">
+      <button class="onboarding-skip" onclick="closeOnboarding()">Skip</button>
+      <button class="onboarding-next" id="obNextBtn" onclick="nextOnboarding()">Next</button>
+    </div>
+  </div>
+</div>
 <div class="app">
 
   <div class="header">
@@ -384,6 +405,7 @@
         <button class="icon-btn" onclick="copyShare()" title="Copy link">⎘</button>
         <button class="icon-btn" onclick="exportReport()" title="Export">↓</button>
       </div>
+      <div class="kbd-hint" style="margin-top:8px">Press <span class="kbd">/</span> to search &middot; <span class="kbd">Enter</span> to analyze &middot; <span class="kbd">Esc</span> to clear</div>
     </div>
 
     <div id="tab-portfolio" style="display:none">
@@ -486,6 +508,29 @@
     </div>
   </div>
 
+  <!-- position tracker -->
+  <div class="card">
+    <div class="card-title">Position tracker</div>
+    <div id="posTotalWrap" style="display:none"><div class="pos-total"><span class="pos-total-label">Total portfolio value</span><span class="pos-total-val" id="posTotal">$0</span></div></div>
+    <div class="position-list" id="positionList"></div>
+    <div class="pos-add-row">
+      <input class="pos-input" id="posTickerInput" type="text" placeholder="Ticker" maxlength="6" autocomplete="off" />
+      <input class="pos-input" id="posShares" type="number" placeholder="Shares" min="0" />
+      <input class="pos-input" id="posCost" type="number" placeholder="Cost/$" min="0" step="0.01" />
+      <button class="pos-add-btn" onclick="addPosition()">Add</button>
+    </div>
+  </div>
+  <!-- price alerts -->
+  <div class="card">
+    <div class="card-title">Price alerts</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">Get flagged when a stock hits your target next time you open the app.</p>
+    <div class="price-alert-row">
+      <input class="pa-input" id="paTicker" type="text" placeholder="Ticker" maxlength="6" autocomplete="off" />
+      <input class="pa-price" id="paPrice" type="number" placeholder="$Target" min="0" step="0.01" />
+      <button class="pa-add-btn" onclick="addPriceAlert()">Set alert</button>
+    </div>
+    <div class="pa-list" id="paList"></div>
+  </div>
   <!-- settings -->
   <div class="card">
     <div class="card-title">Settings</div>
@@ -567,6 +612,7 @@
       </div>
     </div>
     <!-- hedge cards -->
+    <div class="card fade-in d2" id="drawdownCard" style="display:none"></div>
     <div class="card fade-in d3">
       <div class="section-label">Top Hedge Candidates</div>
       <div class="hedges-grid" id="hedgesGrid"></div>
@@ -605,6 +651,9 @@
 // ── State ──────────────────────────────────────────────────────────────────
 var DAYS=30,portfolioTickers=[],customHedges=[],priceChart=null,rollingChart=null,lastResults=null;
 var favorites=JSON.parse(localStorage.getItem('hf_favorites')||'[]');
+    var positions=JSON.parse(localStorage.getItem('hf_positions')||'[]');
+    var priceAlerts=JSON.parse(localStorage.getItem('hf_price_alerts')||'[]');
+    var obStep=0;
 var alerts=JSON.parse(localStorage.getItem('hf_alerts')||'[]');
 var watchlist=JSON.parse(localStorage.getItem('hf_watchlist')||'[]');
 var recentSearches=JSON.parse(localStorage.getItem('hf_recent')||'[]');
@@ -871,16 +920,18 @@ async function runAnalysis(tickers){
     estimateEarnings(tickers);
     var allH=DEFAULT_HEDGES.concat(customHedges);
     var hr=await Promise.allSettled(allH.map(function(h){return fetchPrices(h.ticker).then(function(p){return Object.assign({},h,{prices:p});});}));
-    var scored=[];hr.forEach(function(r){if(r.status!=='fulfilled')return;var hd=r.value,hRet=calcReturns(hd.prices);scored.push(Object.assign({},hd,{corr:calcCorr(combined,hRet),beta:calcBeta(hRet,spyRet),trend:corrTrend(hd.prices,combined),returns:hRet}));});
+    var scored=[];hr.forEach(function(r){if(r.status!=='fulfilled')return;var hd=r.value,hRet=calcReturns(hd.prices);scored.push(Object.assign({},hd,{corr:calcCorr(combined,hRet),beta:calcBeta(hRet,spyRet),trend:corrTrend(hd.prices,combined),prices:hd.prices,returns:hRet}));});
     scored.sort(function(a,b){return a.corr-b.corr;});
     checkAlerts(scored);
     var top=scored.slice(0,6);
     lastResults={tickers:tickers,beta:beta,corr:corr,ret:ret,vol:vol,risk:risk,sharpe:sharpe,top:top};
     updateCalc();
+    if(top.length&&top[0].prices)renderDrawdown(stocks[0],top[0].prices,tickers[0],top[0].ticker);
+    updateCalc();
     document.getElementById('hedgesGrid').innerHTML=top.map(function(h){
       var isFav=favorites.findIndex(function(f){return f.ticker===h.ticker;})!==-1;
       var savedNote=hedgeNotes[h.ticker]||'';
-      var tr=h.trend==='strengthening'?'<span class="trend-badge trend-s">↑</span>':h.trend==='weakening'?'<span class="trend-badge trend-w">↓</span>':'';
+      var grade=calcGrade(h.corr,h.beta,h.trend);var tr=h.trend==='strengthening'?'<span class="trend-badge trend-s">↑</span>':h.trend==='weakening'?'<span class="trend-badge trend-w">↓</span>':'';
       return'<div class="hedge-card'+(isFav?' favorited':'')+'" data-ticker="'+h.ticker+'">'+
         '<button class="fav-btn" onclick="toggleFavorite(\''+h.ticker+'\',\''+h.name+'\','+h.corr+','+h.beta+')">'+(isFav?'★':'☆')+'</button>'+
         '<div class="sector-badge'+(h.custom?' custom-badge':'')+'">'+h.sector+'</div>'+
@@ -918,12 +969,27 @@ function exportReport(){if(!lastResults){setStatus('Run an analysis first.');ret
 // ── Init ───────────────────────────────────────────────────────────────────
 (function(){
   loadMarketPill();loadFearGreed();loadHeatmap();loadQuickPrices();
-  renderWatchlist();renderRecent();renderAlerts();
+  renderWatchlist();renderRecent();renderAlerts();renderPositions();renderPriceAlerts();
+  if(positions.length)fetchPositionPrices();
+  checkAllPriceAlerts();
   if(watchlist.length)fetchWatchlistPrices();
   var p=new URLSearchParams(window.location.search);var t=p.get('t'),d=p.get('d');
   if(d){DAYS=parseInt(d)||30;document.querySelectorAll('.window-btn').forEach(function(b){b.classList.toggle('active',b.textContent===DAYS+'d');});}
   if(t){var tickers=t.split(',').map(function(s){return s.trim().toUpperCase().replace(/[^A-Z]/g,'');}).filter(Boolean);if(tickers.length===1){document.getElementById('singleInput').value=tickers[0];setTimeout(function(){runAnalysis(tickers);},500);}else if(tickers.length>1){switchTab('portfolio');portfolioTickers=tickers;renderPortfolioTags();setTimeout(function(){runAnalysis(tickers);},500);}}
 })();
+
+    function calcGrade(corr,beta,trend){var score=0;if(corr<-0.2)score+=40;else if(corr<0)score+=25;else if(corr<0.2)score+=10;if(beta<0.4)score+=30;else if(beta<0.6)score+=20;else if(beta<0.8)score+=10;if(trend==='weakening')score+=20;else if(trend==='stable')score+=10;if(score>=80)return'A';if(score>=65)return'B';if(score>=45)return'C';if(score>=25)return'D';return'F';}
+    function renderDrawdown(prices,hedgePrices,stockLabel,hedgeLabel){var card=document.getElementById('drawdownCard');var n=prices.length;if(n<5){card.style.display='none';return;}var peak=prices[0],maxDD=0;for(var i=1;i<n;i++){if(prices[i]>peak)peak=prices[i];var dd=(prices[i]-peak)/peak*100;if(dd<maxDD)maxDD=dd;}var hPeak=hedgePrices[0],hDD=0;for(var i=1;i<Math.min(n,hedgePrices.length);i++){if(hedgePrices[i]>hPeak)hPeak=hedgePrices[i];var d2=(hedgePrices[i]-hPeak)/hedgePrices[i]*100;if(d2<hDD)hDD=d2;}var cushion=Math.min(Math.max((maxDD-hDD)/2,0),Math.abs(maxDD)*0.6);var prot=maxDD+cushion;card.innerHTML='<div class="drawdown-title">Drawdown Analysis - '+stockLabel+' vs '+hedgeLabel+'</div><div class="drawdown-grid"><div class="dd-stat"><div class="dd-val c-red">'+maxDD.toFixed(1)+'%</div><div class="dd-label">'+stockLabel+' max drawdown</div></div><div class="dd-stat"><div class="dd-val c-amber">'+hDD.toFixed(1)+'%</div><div class="dd-label">'+hedgeLabel+' drawdown</div></div><div class="dd-stat"><div class="dd-val c-green">'+prot.toFixed(1)+'%</div><div class="dd-label">Est. protected</div></div></div><div class="dd-note">'+stockLabel+' fell a max of '+maxDD.toFixed(1)+'% this period. Adding '+hedgeLabel+' could have reduced that to approximately '+prot.toFixed(1)+'% based on their correlation.</div>';card.style.display='block';}
+    function addPosition(){var t=document.getElementById('posTickerInput').value.trim().toUpperCase().replace(/[^A-Z]/g,'');var shares=parseFloat(document.getElementById('posShares').value);var cost=parseFloat(document.getElementById('posCost').value);if(!t||isNaN(shares)||isNaN(cost))return;positions.push({ticker:t,shares:shares,cost:cost,currentPrice:null});localStorage.setItem('hf_positions',JSON.stringify(positions));document.getElementById('posTickerInput').value='';document.getElementById('posShares').value='';document.getElementById('posCost').value='';renderPositions();fetchPositionPrices();}
+    function removePosition(i){positions.splice(i,1);localStorage.setItem('hf_positions',JSON.stringify(positions));renderPositions();}
+    function renderPositions(){var el=document.getElementById('positionList');if(!positions.length){el.innerHTML='<p class="empty-state" style="padding:4px 0">Add positions to track P&L live</p>';document.getElementById('posTotalWrap').style.display='none';return;}var totalVal=0;el.innerHTML=positions.map(function(p,i){var cur=p.currentPrice||p.cost,val=cur*p.shares,pnl=(cur-p.cost)*p.shares,pct=((cur-p.cost)/p.cost)*100;totalVal+=val;return'<div class="position-item"><div class="pos-header"><div class="pos-ticker">'+p.ticker+' <span style="font-size:11px;color:var(--text2);font-weight:400">x'+p.shares+'</span></div><div style="display:flex;align-items:center;gap:6px"><div class="pos-pnl '+(pnl>=0?'up':'down')+'">'+(pnl>=0?'+':'')+pnl.toFixed(0)+'</div><button class="pos-remove" onclick="removePosition('+i+')">x</button></div></div><div class="pos-details"><div class="pos-detail">Cost <span>$'+p.cost.toFixed(2)+'</span></div><div class="pos-detail">Now <span id="pp-'+i+'">$'+cur.toFixed(2)+'</span></div><div class="pos-detail">Value <span>$'+Math.round(val).toLocaleString()+'</span></div><div class="pos-detail">P&L <span style="color:'+(pct>=0?'var(--green)':'var(--red)')+'">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</span></div></div></div>';}).join('');document.getElementById('posTotal').textContent='$'+Math.round(totalVal).toLocaleString();document.getElementById('posTotalWrap').style.display='block';}
+    async function fetchPositionPrices(){await Promise.allSettled(positions.map(async function(p,i){try{var res=await fetch('/api/quote?ticker='+p.ticker+'&days=3');if(!res.ok)return;var d=await res.json();var cl=d.chart.result[0].indicators.quote[0].close.filter(function(x){return x!==null;});if(!cl.length)return;positions[i].currentPrice=cl[cl.length-1];}catch(e){}}));localStorage.setItem('hf_positions',JSON.stringify(positions));renderPositions();}
+    function addPriceAlert(){var t=document.getElementById('paTicker').value.trim().toUpperCase().replace(/[^A-Z]/g,'');var price=parseFloat(document.getElementById('paPrice').value);if(!t||isNaN(price))return;priceAlerts.push({ticker:t,target:price,status:'watching',currentPrice:null});localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));document.getElementById('paTicker').value='';document.getElementById('paPrice').value='';renderPriceAlerts();checkAllPriceAlerts();}
+    function removePriceAlert(i){priceAlerts.splice(i,1);localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));renderPriceAlerts();}
+    function renderPriceAlerts(){var el=document.getElementById('paList');if(!priceAlerts.length){el.innerHTML='<p class="empty-state">No price alerts set yet.</p>';return;}el.innerHTML=priceAlerts.map(function(a,i){return'<div class="pa-item"><div><div class="pa-ticker">'+a.ticker+(a.currentPrice?'<span style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--text2);margin-left:6px">$'+a.currentPrice.toFixed(2)+'</span>':'')+'</div><div class="pa-target">Target: $'+a.target.toFixed(2)+'</div></div><div style="display:flex;align-items:center;gap:6px"><span class="pa-status '+(a.status==='triggered'?'pa-triggered':'pa-watching')+'">'+(a.status==='triggered'?'Triggered!':'Watching')+'</span><button class="pa-remove" onclick="removePriceAlert('+i+')">x</button></div></div>';}).join('');}
+    function checkPriceAlerts(ticker,price){priceAlerts.forEach(function(a,i){if(a.ticker===ticker){priceAlerts[i].currentPrice=price;if(Math.abs(price-a.target)/a.target<0.02)priceAlerts[i].status='triggered';}});localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));renderPriceAlerts();}
+    async function checkAllPriceAlerts(){await Promise.allSettled(priceAlerts.map(async function(a,i){try{var res=await fetch('/api/quote?ticker='+a.ticker+'&days=2');if(!res.ok)return;var d=await res.json();var cl=d.chart.result[0].indicators.quote[0].close.filter(function(x){return x!==null;});if(!cl.length)return;var p=cl[cl.length-1];priceAlerts[i].currentPrice=p;if(Math.abs(p-a.target)/a.target<0.02)priceAlerts[i].status='triggered';}catch(e){}}));localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));renderPriceAlerts();}
+    document.addEventListener('keydown',function(e){if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();switchTab('single');document.getElementById('singleInput').focus();}if(e.key==='Escape'){document.getElementById('singleInput').value='';document.getElementById('singleAC').classList.remove('show');document.getElementById('livePriceStrip').classList.remove('show');}});
 
 document.getElementById('singleInput').addEventListener('keydown',function(e){if(e.key==='Enter')runSingle();});
 document.getElementById('portfolioInput').addEventListener('keydown',function(e){if(e.key==='Enter')addPortfolioTicker();});
