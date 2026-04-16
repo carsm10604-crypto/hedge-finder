@@ -405,7 +405,7 @@
         <button class="icon-btn" onclick="copyShare()" title="Copy link">⎘</button>
         <button class="icon-btn" onclick="exportReport()" title="Export">↓</button>
       </div>
-      <div class="kbd-hint" style="margin-top:8px">Press <span class="kbd">/</span> to search &middot; <span class="kbd">Enter</span> to analyze &middot; <span class="kbd">Esc</span> to clear</div>
+      <div class="kbd-hint" style="margin-top:8px">Press <span class="kbd">Ctrl+K</span> to search &middot; <span class="kbd">Enter</span> to analyze &middot; <span class="kbd">Esc</span> to clear</div>
     </div>
 
     <div id="tab-portfolio" style="display:none">
@@ -989,7 +989,7 @@ function exportReport(){if(!lastResults){setStatus('Run an analysis first.');ret
     function renderPriceAlerts(){var el=document.getElementById('paList');if(!priceAlerts.length){el.innerHTML='<p class="empty-state">No price alerts set yet.</p>';return;}el.innerHTML=priceAlerts.map(function(a,i){return'<div class="pa-item"><div><div class="pa-ticker">'+a.ticker+(a.currentPrice?'<span style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--text2);margin-left:6px">$'+a.currentPrice.toFixed(2)+'</span>':'')+'</div><div class="pa-target">Target: $'+a.target.toFixed(2)+'</div></div><div style="display:flex;align-items:center;gap:6px"><span class="pa-status '+(a.status==='triggered'?'pa-triggered':'pa-watching')+'">'+(a.status==='triggered'?'Triggered!':'Watching')+'</span><button class="pa-remove" onclick="removePriceAlert('+i+')">x</button></div></div>';}).join('');}
     function checkPriceAlerts(ticker,price){priceAlerts.forEach(function(a,i){if(a.ticker===ticker){priceAlerts[i].currentPrice=price;if(Math.abs(price-a.target)/a.target<0.02)priceAlerts[i].status='triggered';}});localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));renderPriceAlerts();}
     async function checkAllPriceAlerts(){await Promise.allSettled(priceAlerts.map(async function(a,i){try{var res=await fetch('/api/quote?ticker='+a.ticker+'&days=2');if(!res.ok)return;var d=await res.json();var cl=d.chart.result[0].indicators.quote[0].close.filter(function(x){return x!==null;});if(!cl.length)return;var p=cl[cl.length-1];priceAlerts[i].currentPrice=p;if(Math.abs(p-a.target)/a.target<0.02)priceAlerts[i].status='triggered';}catch(e){}}));localStorage.setItem('hf_price_alerts',JSON.stringify(priceAlerts));renderPriceAlerts();}
-    document.addEventListener('keydown',function(e){if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();switchTab('single');document.getElementById('singleInput').focus();}if(e.key==='Escape'){document.getElementById('singleInput').value='';document.getElementById('singleAC').classList.remove('show');document.getElementById('livePriceStrip').classList.remove('show');}});
+    document.addEventListener('keydown',function(e){if((e.key==='k'&&(e.ctrlKey||e.metaKey))||(e.key==='/'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA')){e.preventDefault();switchTab('single');document.getElementById('singleInput').focus();}if(e.key==='Escape'){document.getElementById('singleInput').value='';document.getElementById('singleAC').classList.remove('show');document.getElementById('livePriceStrip').classList.remove('show');}});
 
 document.getElementById('singleInput').addEventListener('keydown',function(e){if(e.key==='Enter')runSingle();});
 document.getElementById('portfolioInput').addEventListener('keydown',function(e){if(e.key==='Enter')addPortfolioTicker();});
